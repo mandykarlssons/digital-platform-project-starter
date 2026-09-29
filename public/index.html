@@ -1,69 +1,92 @@
 <!doctype html>
 <html lang="sv">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Järngängets Musik Quiz</title>
-    <link rel="stylesheet" href="/style.css" />
-  </head>
-  <body>
-    <header class="site-header">
-      <p class="eyebrow">Digital Platform Project</p>
-      <h1>Musik Quiz</h1>
-      <p class="intro">
-        Välkommen till Järngängets Musikquiz, alla stilar på en och samma gång.
-        Välj genre nedan:
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Järngängets Musikquiz</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+  <!-- Sidans header -->
+  <header class="site-header">
+    <p class="eyebrow">Digital Platform Project</p>
+    <h1>Musik Quiz</h1>
+    <p class="intro">
+      Välkommen till Järngängets Musikquiz, alla stilar på en och samma gång.
+      Välj genre nedan:
+    </p>
+  </header>
+
+  <main>
+    <!-- De tre quizboxarna -->
+    <div class="quiz-grid">
+
+      <!-- 80-tal -->
+      <section class="card">
+        <h2>Poppigt 80-tal</h2>
+        <p>
+          Hårhöjden bestämde sällan talangen och alla killar hade läppstift.
+          Dags att testa om din 80-talskunskap är lika stark som en Rick Astley-refräng.
+        </p>
+        <button class="quiz-button" data-quiz="80tal" type="button">Starta här!</button>
+      </section>
+
+      <!-- 90-tal -->
+      <section class="card">
+        <h2>Håll käften-musik från 90-talet</h2>
+        <p>
+          Från flanellskjortor och moshpits till glowsticks och rejv i skogen.
+          Är din 90-talskunskap lika stark som en Backstreet Boys-refräng?
+        </p>
+        <button class="quiz-button" data-quiz="90tal" type="button">Starta här!</button>
+      </section>
+
+      <!-- 10-tal -->
+      <section class="card">
+        <h2>Det bästa av det mesta från 10-talet</h2>
+        <p>
+          När Spotify blev vardagsrum och festivalscener smälte samman med Instagramflödet.
+          Är din 10-talskunskap lika stark som ett Avicii-drop?
+        </p>
+        <button class="quiz-button" data-quiz="10tal" type="button">Starta här!</button>
+      </section>
+    </div>
+
+    <!-- Visar status för servern -->
+    <section class="card secondary">
+      <h2>Lokal miljö</h2>
+      <p>
+        Den här sidan körs från er egen Node-server på localhost.
+        Öppna DevTools och undersök vad browsern faktiskt gör.
       </p>
-    </header>
+      <p id="server-status" class="status">Kontrollerar servern…</p>
+    </section>
+  </main>
 
-    <main>
-      <section class="card" aria-labelledby="first-step-title">
-        <h2 id="first-step-title">Poppigt 80-tal</h2>
-        <p>
-          Hårhöjden bestämde sällan talangen och alla killar hade läppstift. Dags att testa om din
-          80-tals kunskap är lika stark som en Rick Astley refräng..
-        </p>
+  <!-- Popup för quizet -->
+  <div id="quiz-popup" class="quiz-popup">
+    <div class="quiz-popup-content">
+      <button id="close-quiz" class="close-button" type="button" aria-label="Stäng quiz">×</button>
 
-        <button id="try-button" type="button">Starta här!</button>
-        <p id="result" class="result" aria-live="polite">Inget har hänt ännu.</p>
-      </section>
+      <h2 id="quiz-title">Musikquiz</h2>
+      <p id="quiz-question">Lyssna på låten och välj rätt svar.</p>
 
-      <section class="card" aria-labelledby="first-step-title">
-        <h2 id="first-step-title">Håll käften musik från 90-talet</h2>
-        <p>
-          Från flanellskjortor och moshpits till glowsticks och rejv i skogen. Är din 90-talskunskap 
-          lika stark som en Backstreets Boys refräng..
-        </p>
+      <!-- Musikspelare -->
+      <audio id="quiz-audio" controls>
+        Din webbläsare stödjer inte ljuduppspelning.
+      </audio>
 
-        <button id="try-button" type="button">Starta här!</button>
-        <p id="result" class="result" aria-live="polite">Inget har hänt ännu.</p>
-      </section>
+      <!-- Svar och feedback skapas med JavaScript -->
+      <div id="quiz-answers"></div>
+      <p id="quiz-feedback" aria-live="polite"></p>
+    </div>
+  </div>
 
-<section class="card" aria-labelledby="first-step-title">
-        <h2 id="first-step-title">Det bästa av det mesta från 10-talet</h2>
-        <p>
-          När Spotify blev vardagsrum och festivalscener smälte samman med Instagramflödet. Är din 10-talskunskap
-          lika stark som ett Avicii drop..
-        </p>
+  <footer>
+    <p>Build anything. Understand what happens.</p>
+  </footer>
 
-        <button id="try-button" type="button">Starta här!</button>
-        <p id="result" class="result" aria-live="polite">Inget har hänt ännu.</p>
-      </section>
-
-      <section class="card secondary" aria-labelledby="server-title">
-        <h2 id="server-title">Lokal miljö</h2>
-        <p>
-          Den här sidan körs från er egen Node-server på localhost. Öppna
-          DevTools och undersök vad browsern faktiskt gör.
-        </p>
-        <p id="server-status" class="status">Kontrollerar servern…</p>
-      </section>
-    </main>
-
-    <footer>
-      <p>Build anything. Understand what happens.</p>
-    </footer>
-
-    <script src="/app.js"></script>
-  </body>
+  <script src="/app.js"></script>
+</body>
 </html>
