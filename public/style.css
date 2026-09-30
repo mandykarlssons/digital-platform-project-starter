@@ -17,6 +17,7 @@ body {
 
 h1, h2, p {
   margin-top: 0;
+  text-align:center;
 }
 
 /* Header */
@@ -44,6 +45,7 @@ h1 {
 
 .intro {
   max-width: 640px;
+  margin-inline: auto;
   font-size: 1.15rem;
 }
 
