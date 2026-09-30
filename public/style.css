@@ -12,6 +12,7 @@
 
 body {
   margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, p {
@@ -38,6 +39,7 @@ h1 {
   font-size: clamp(2.3rem, 8vw, 4.8rem);
   line-height: 0.98;
   letter-spacing: -0.04em;
+  font-weight: 800;
 }
 
 .intro {
@@ -58,18 +60,24 @@ main {
   gap: 20px;
 }
 
-/* Quizboxar */
+/* Quizboxar - med bevarad färg & ny interaktivitet/skugga */
 .card {
   padding: 28px;
   background: rgb(183, 197, 213);
   border: 1px solid #ffffff;
   border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(1, 121, 242, 0.06);
+  box-shadow: 0 10px 30px rgba(1, 121, 242, 0.08);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .quiz-grid .card {
   display: flex;
   flex-direction: column;
+}
+
+.quiz-grid .card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(1, 121, 242, 0.15);
 }
 
 .quiz-grid .card p {
@@ -83,9 +91,12 @@ main {
   background-color: #ffffff;
 }
 
-/* Knappar */
+/* Knappar - modern interaktivitet & hover-effekt */
 button {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 8px;
   padding: 12px 18px;
   border: 0;
@@ -95,10 +106,15 @@ button {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
 
 button:hover {
   opacity: 0.88;
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 button:focus-visible {
@@ -112,12 +128,14 @@ button:focus-visible {
   border-top: 1px solid #e5e8eb;
 }
 
-/* Popupens mörka bakgrund */
+/* Popupens mörka bakgrund - med frostat glas (backdrop-filter) */
 .quiz-popup {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 60%);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -128,14 +146,15 @@ button:focus-visible {
   display: flex;
 }
 
-/* Popupens vita ruta */
+/* Popupens ruta - bevarad färg med djupare skugga & kantlinje */
 .quiz-popup-content {
   position: relative;
   width: min(520px, 100%);
   padding: 32px;
   background: #9db1c6;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 18px;
-  box-shadow: 0 20px 60px rgb(0 0 0 / 20%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 
 .close-button {
@@ -147,12 +166,19 @@ button:focus-visible {
   background: transparent;
   color: #20252b;
   font-size: 1.8rem;
+  border-radius: 8px;
+}
+
+.close-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  opacity: 1;
 }
 
 /* Musikspelare */
 #quiz-audio {
   width: 100%;
   margin: 16px 0;
+  border-radius: 10px;
 }
 
 /* Svarsknappar */
@@ -166,6 +192,12 @@ button:focus-visible {
   width: 100%;
   margin-top: 0;
   text-align: left;
+  justify-content: flex-start;
+}
+
+#quiz-answers button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 #quiz-feedback {
@@ -178,7 +210,7 @@ footer {
   width: min(1200px, calc(100% - 40px));
   margin-inline: auto;
   padding: 36px 0 56px;
-  color: #68717a;
+  color: #4a5157;
   font-size: 0.9rem;
 }
 
