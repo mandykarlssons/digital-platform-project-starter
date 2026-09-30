@@ -27,7 +27,7 @@ const quizzes = {
         correctAnswer: "1982"
       },
       {
-        question: "Vilket känt brittiskt synthband hade en enorm hit med 'Take On Me'?",
+        question: "Vilket känt Norskt synthband hade en enorm hit med 'Take On Me'?",
         audio: null,
         answers: ["Duran Duran", "Depeche Mode", "A-ha", "Pet Shop Boys"],
         correctAnswer: "A-ha"
