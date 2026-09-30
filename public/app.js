@@ -97,7 +97,7 @@ quizButtons.forEach((button) => {
   });
 });
 
-// Startar valts quizkategori
+// Startar vald quizkategori
 function startQuizCategory(categoryKey) {
   currentQuizCategory = quizzes[categoryKey];
   currentQuestionIndex = 0;
