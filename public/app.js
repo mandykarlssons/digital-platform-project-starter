@@ -501,4 +501,3 @@ async function checkServer() {
 
 // Startar sidan
 loadSavedData();
-checkServer();
