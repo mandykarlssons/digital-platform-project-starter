@@ -15,17 +15,21 @@ const registrationForm = document.querySelector("#registration-form");
 const playerNameInput = document.querySelector("#player-name");
 const playerStatus = document.querySelector("#player-status");
 const storageStatus = document.querySelector("#storage-status");
-const rememberNameInput = document.querySelector("#remember-name");
 const forgetNameButton = document.querySelector("#forget-name");
 
-// Avkodar API-text med stöd för svenska tecken
-function decodeBase64(base64Str) {
+const cookieDialog = document.querySelector("#cookie-dialog");
+const cookieSettingsForm = document.querySelector("#cookie-settings-form");
+const allowNameCookie = document.querySelector("#allow-name-cookie");
+const allowScoreStorage = document.querySelector("#allow-score-storage");
+const cookieMessage = document.querySelector("#cookie-message");
+
+// Avkodar text från API:et
+function decodeBase64(value) {
   try {
-    const binString = atob(base64Str);
-    const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
+    const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
     return new TextDecoder().decode(bytes);
-  } catch (e) {
-    return base64Str;
+  } catch (error) {
+    return value;
   }
 }
 
@@ -112,9 +116,12 @@ const quizzes = {
   }
 };
 
-// Sparnycklar och spelets tillstånd
+// Sparnycklar
 const NAME_KEY = "jarnganget-player-name";
 const SCORES_KEY = "jarnganget-leaderboards";
+const SETTINGS_KEY = "jarnganget-storage-settings";
+
+// Spelets tillstånd
 let playerName = "";
 let currentPlayerName = "";
 let currentQuizKey = null;
@@ -124,71 +131,102 @@ let userScore = 0;
 let answered = false;
 let resultSaved = false;
 let previousFocus = null;
+let quizRequestId = 0;
 let leaderboards = { "80tal": [], "90tal": [], "10tal": [], "external": [] };
 
-// Läser namn-cookien
-function readNameCookie() {
-  try {
-    const cookie = document.cookie.split(";").map((part) => part.trim())
-      .find((part) => part.startsWith(`${NAME_KEY}=`));
+let storageSettings = { name: false, scores: false };
+let hasSavedSettings = false;
 
-    return cookie
-      ? decodeURIComponent(cookie.slice(NAME_KEY.length + 1)).trim().slice(0, 30)
-      : "";
+// Läser en cookie
+function readCookie(key) {
+  try {
+    const cookie = document.cookie.split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${key}=`));
+
+    return cookie ? decodeURIComponent(cookie.slice(key.length + 1)) : "";
   } catch (error) {
     return "";
   }
 }
 
-// Sparar namnet i en cookie i 30 dagar
-function writeNameCookie(name) {
+// Sparar en cookie i 30 dagar
+function writeCookie(key, value) {
   const secure = location.protocol === "https:" ? "; Secure" : "";
 
   document.cookie =
-    `${NAME_KEY}=${encodeURIComponent(name)}; Max-Age=${30 * 24 * 60 * 60}; Path=/; SameSite=Lax${secure}`;
+    `${key}=${encodeURIComponent(value)}; Max-Age=${30 * 24 * 60 * 60}; Path=/; SameSite=Lax${secure}`;
 
-  if (readNameCookie() !== name) {
-    throw new Error("Cookies är blockerade.");
+  if (readCookie(key) !== value) {
+    throw new Error("Cookien kunde inte sparas.");
   }
 }
 
-// Tar bort namn-cookien
-function deleteNameCookie() {
-  document.cookie = `${NAME_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
+// Tar bort en cookie
+function deleteCookie(key) {
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${key}=; Max-Age=0; Path=/; SameSite=Lax${secure}`;
+
+  if (readCookie(key)) {
+    throw new Error("Cookien kunde inte tas bort.");
+  }
 }
 
-// Läser sparade uppgifter
-function loadSavedData() {
+// Läser lagringsval
+function loadStorageSettings() {
   try {
-    // Ett äldre sparat namn kan användas för det här besöket
-    const cookieName = readNameCookie();
-    const savedName = cookieName || localStorage.getItem(NAME_KEY);
-    playerName = savedName ? savedName.trim().slice(0, 30) : "";
-    rememberNameInput.checked = Boolean(cookieName);
+    const value = readCookie(SETTINGS_KEY);
+    if (!value) return;
 
-    const savedScores = JSON.parse(localStorage.getItem(SCORES_KEY) || "{}");
+    const saved = JSON.parse(value);
 
-    for (const key of Object.keys(quizzes)) {
-      const entries = savedScores?.[key];
-
-      leaderboards[key] = Array.isArray(entries)
-        ? entries.filter((entry) =>
-            entry &&
-            typeof entry.name === "string" &&
-            entry.name.trim().length > 0 &&
-            Number.isInteger(entry.score) &&
-            Number.isInteger(entry.total) &&
-            entry.total > 0 &&
-            entry.score >= 0 &&
-            entry.score <= entry.total &&
-            Number.isFinite(entry.date)
-          )
-        : [];
+    if (
+      typeof saved?.name === "boolean" &&
+      typeof saved?.scores === "boolean"
+    ) {
+      storageSettings = { name: saved.name, scores: saved.scores };
+      hasSavedSettings = true;
     }
   } catch (error) {
-    console.error("Kunde inte läsa sparade uppgifter", error);
+    console.error("Kunde inte läsa lagringsval", error);
+  }
+}
+
+// Läser sparat namn och topplistor
+function loadSavedData() {
+  playerName = storageSettings.name
+    ? readCookie(NAME_KEY).trim().slice(0, 30)
+    : "";
+
+  if (storageSettings.scores) {
+    try {
+      const savedScores = JSON.parse(localStorage.getItem(SCORES_KEY) || "{}");
+
+      for (const key of Object.keys(quizzes)) {
+        const entries = savedScores?.[key];
+
+        leaderboards[key] = Array.isArray(entries)
+          ? entries.filter((entry) =>
+              entry &&
+              typeof entry.name === "string" &&
+              entry.name.trim().length > 0 &&
+              Number.isInteger(entry.score) &&
+              Number.isInteger(entry.total) &&
+              entry.total > 0 &&
+              entry.score >= 0 &&
+              entry.score <= entry.total &&
+              Number.isFinite(entry.date)
+            ).sort(compareScores).slice(0, 10)
+          : [];
+      }
+    } catch (error) {
+      console.error("Kunde inte läsa topplistan", error);
+      storageStatus.textContent =
+        "Sparade resultat kunde inte läsas. Du kan fortfarande spela.";
+    }
+  } else {
     storageStatus.textContent =
-      "Sparade uppgifter kunde inte läsas. Du kan fortfarande spela.";
+      "Topplistan visas under detta besök och sparas inte till nästa gång.";
   }
 
   playerNameInput.value = playerName;
@@ -196,14 +234,85 @@ function loadSavedData() {
   renderLeaderboards();
 }
 
-// Visar registrerat namn
+// Öppnar cookiepopupen
+function openCookieSettings() {
+  allowNameCookie.checked = storageSettings.name;
+  allowScoreStorage.checked = storageSettings.scores;
+  cookieMessage.textContent = "";
+
+  if (!cookieDialog.open) cookieDialog.showModal();
+}
+
+// Sparar lagringsval
+function saveStorageSettings(nameAllowed, scoresAllowed) {
+  storageSettings = { name: nameAllowed, scores: scoresAllowed };
+  const errors = [];
+
+  try {
+    writeCookie(SETTINGS_KEY, JSON.stringify(storageSettings));
+    hasSavedSettings = true;
+  } catch (error) {
+    console.error(error);
+    errors.push("Dina val gäller nu, men kunde inte sparas till nästa besök.");
+  }
+
+  try {
+    if (storageSettings.name && playerName) {
+      writeCookie(NAME_KEY, playerName);
+    } else if (!storageSettings.name) {
+      deleteCookie(NAME_KEY);
+    }
+  } catch (error) {
+    console.error(error);
+    errors.push("Webbläsaren kunde inte uppdatera namn-cookien.");
+  }
+
+  try {
+    // Rensar namnet från den äldre lösningen
+    localStorage.removeItem(NAME_KEY);
+
+    if (storageSettings.scores) {
+      localStorage.setItem(SCORES_KEY, JSON.stringify(leaderboards));
+    } else {
+      localStorage.removeItem(SCORES_KEY);
+    }
+  } catch (error) {
+    console.error(error);
+    errors.push("Webbläsaren kunde inte uppdatera topplistans lagring.");
+  }
+
+  storageStatus.textContent = storageSettings.scores
+    ? "Topplistan sparas i den här webbläsaren."
+    : "Topplistan visas under detta besök och sparas inte till nästa gång.";
+
+  cookieMessage.textContent = errors.join(" ");
+
+  if (!errors.length) cookieDialog.close();
+}
+
+// Popupens knappar
+document.querySelector("#open-cookie-settings")
+  .addEventListener("click", openCookieSettings);
+
+document.querySelector("#accept-all-cookies")
+  .addEventListener("click", () => saveStorageSettings(true, true));
+
+document.querySelector("#necessary-cookies-only")
+  .addEventListener("click", () => saveStorageSettings(false, false));
+
+cookieSettingsForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveStorageSettings(allowNameCookie.checked, allowScoreStorage.checked);
+});
+
+// Visar spelarnamn
 function updatePlayerStatus() {
   playerStatus.textContent = playerName
     ? `Du spelar som ${playerName}. Du kan registrera ett annat namn ovan.`
     : "Registrera ditt namn innan du startar ett quiz.";
 }
 
-// Registrerar spelarnamn
+// Registrerar namn
 registrationForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const name = playerNameInput.value.trim();
@@ -219,59 +328,51 @@ registrationForm.addEventListener("submit", (event) => {
   updatePlayerStatus();
 
   try {
-    if (rememberNameInput.checked) {
-      writeNameCookie(playerName);
+    if (storageSettings.name) {
+      writeCookie(NAME_KEY, playerName);
     } else {
-      deleteNameCookie();
+      deleteCookie(NAME_KEY);
     }
   } catch (error) {
-    console.error("Kunde inte spara namnet", error);
+    console.error(error);
     playerStatus.textContent =
-      `Du spelar som ${playerName}. Namninställningen kunde inte sparas. Kontrollera webbläsarens cookieinställningar.`;
+      `Du spelar som ${playerName}. Namn-cookien kunde inte uppdateras.`;
   }
-});
-
-// Tar bort det gamla namnet från localStorage
-registrationForm.addEventListener("submit", () => {
-  try {
-    localStorage.removeItem(NAME_KEY);
-  } catch (error) {
-    console.error(error);
-  }
-});
-
-// Avmarkering tar bort namn-cookien direkt
-rememberNameInput.addEventListener("change", () => {
-  if (!rememberNameInput.checked) {
-    deleteNameCookie();
-
-    try {
-      localStorage.removeItem(NAME_KEY);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-});
-
-// Glömmer namnet men behåller topplistorna
-forgetNameButton.addEventListener("click", () => {
-  deleteNameCookie();
 
   try {
     localStorage.removeItem(NAME_KEY);
   } catch (error) {
     console.error(error);
   }
-
-  playerName = "";
-  playerNameInput.value = "";
-  rememberNameInput.checked = false;
-  updatePlayerStatus();
-  playerNameInput.focus();
 });
 
 playerNameInput.addEventListener("input", () => {
   playerNameInput.setCustomValidity("");
+});
+
+// Glömmer namnet men behåller resultaten
+forgetNameButton.addEventListener("click", () => {
+  let couldForget = true;
+
+  try {
+    deleteCookie(NAME_KEY);
+    localStorage.removeItem(NAME_KEY);
+  } catch (error) {
+    console.error(error);
+    couldForget = false;
+  }
+
+  playerName = "";
+  playerNameInput.value = "";
+  playerNameInput.setCustomValidity("");
+  updatePlayerStatus();
+
+  if (!couldForget) {
+    playerStatus.textContent =
+      "Namnet har tömts för detta besök, men sparat namn kunde inte rensas helt.";
+  }
+
+  playerNameInput.focus();
 });
 
 // Startknappar
@@ -288,71 +389,100 @@ quizButtons.forEach((button) => {
   });
 });
 
-// Startar valt quiz
+// Slumpar svarsalternativ
+function shuffleAnswers(answers) {
+  const shuffled = [...answers];
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
+// Startar quiz
 async function startQuizCategory(categoryKey) {
   if (!quizzes[categoryKey]) return;
 
+  const requestId = ++quizRequestId;
   previousFocus = document.activeElement;
   currentQuizKey = categoryKey;
-  currentQuizCategory = quizzes[categoryKey];
+
+  // Varje spel får sitt eget frågeinnehåll
+  currentQuizCategory = {
+    ...quizzes[categoryKey],
+    questions: [...quizzes[categoryKey].questions]
+  };
+
   currentPlayerName = playerName;
   currentQuestionIndex = 0;
   userScore = 0;
+  answered = false;
   resultSaved = false;
 
   quizPopup.classList.add("open");
   document.body.classList.add("quiz-open");
+  quizFeedback.textContent = "";
+  quizAnswers.replaceChildren();
+  quizActions.replaceChildren();
+  resetAudio();
+  popupContent.focus();
 
-  // Hämtar frågor till det externa quizet
-  if (currentQuizCategory.isApi) {
-    quizTitle.textContent = currentQuizCategory.title;
-    quizProgress.textContent = "Hämtar frågor från Open Trivia DB...";
-    quizQuestion.textContent = "Var god vänta...";
-    quizAnswers.replaceChildren();
-    quizActions.replaceChildren();
-    resetAudio();
-
-    try {
-      const response = await fetch(
-        "https://opentdb.com/api.php?amount=10&category=12&difficulty=medium&type=multiple&encode=base64"
-      );
-      const data = await response.json();
-
-      if (data.results && data.results.length > 0) {
-        currentQuizCategory.questions = data.results.map((item) => {
-          const decodedQuestion = decodeBase64(item.question);
-          const decodedCorrect = decodeBase64(item.correct_answer);
-          const decodedIncorrects = item.incorrect_answers.map(decodeBase64);
-
-          const allAnswers = [...decodedIncorrects, decodedCorrect]
-            .sort(() => Math.random() - 0.5);
-
-          return {
-            question: decodedQuestion,
-            audio: null,
-            answers: allAnswers,
-            correctAnswer: decodedCorrect
-          };
-        });
-
-        loadQuestion();
-      } else {
-        quizQuestion.textContent =
-          "Kunde inte ladda frågor från API:et. Försök igen senare.";
-      }
-    } catch (error) {
-      console.error("API Error:", error);
-      quizQuestion.textContent =
-        "Ett nätverksfel uppstod vid hämtning av frågor.";
-    }
-  } else {
+  if (!currentQuizCategory.isApi) {
     loadQuestion();
+    return;
   }
 
-  popupContent.focus();
+  quizTitle.textContent = currentQuizCategory.title;
+  quizProgress.textContent = "Hämtar frågor från Open Trivia DB...";
+  quizQuestion.textContent = "Var god vänta...";
+
+  try {
+    const response = await fetch(
+      "https://opentdb.com/api.php?amount=10&category=12&difficulty=medium&type=multiple&encode=base64"
+    );
+
+    if (!response.ok) throw new Error("API-fel: " + response.status);
+
+    const data = await response.json();
+
+    // Ignorerar svar från ett stängt eller ersatt quiz
+    if (requestId !== quizRequestId) return;
+
+    if (
+      data.response_code !== 0 ||
+      !Array.isArray(data.results) ||
+      !data.results.length
+    ) {
+      throw new Error("Inga frågor kunde hämtas.");
+    }
+
+    currentQuizCategory.questions = data.results.map((item) => {
+      const correctAnswer = decodeBase64(item.correct_answer);
+
+      return {
+        question: decodeBase64(item.question),
+        audio: null,
+        answers: shuffleAnswers([
+          ...item.incorrect_answers.map(decodeBase64),
+          correctAnswer
+        ]),
+        correctAnswer
+      };
+    });
+
+    loadQuestion();
+  } catch (error) {
+    if (requestId !== quizRequestId) return;
+    console.error("API Error:", error);
+    quizProgress.textContent = "";
+    quizQuestion.textContent =
+      "Kunde inte hämta frågor. Stäng quizet och försök igen senare.";
+  }
 }
 
-// Stoppar och tömmer ljudspelaren
+// Tömmer ljudspelaren
 function resetAudio() {
   quizAudio.pause();
   quizAudio.removeAttribute("src");
@@ -366,8 +496,7 @@ function loadQuestion() {
   answered = false;
 
   quizTitle.textContent = currentQuizCategory.title;
-  quizProgress.textContent =
-    `${currentPlayerName} • Fråga ${currentQuestionIndex + 1}/${currentQuizCategory.questions.length} • ${userScore} poäng`;
+  updateQuizProgress();
   quizQuestion.textContent = question.question;
   quizFeedback.textContent = "";
   quizAnswers.replaceChildren();
@@ -392,7 +521,13 @@ function loadQuestion() {
   });
 }
 
-// Hanterar svaret
+// Visar fråga och poäng
+function updateQuizProgress() {
+  quizProgress.textContent =
+    `${currentPlayerName} • Fråga ${currentQuestionIndex + 1}/${currentQuizCategory.questions.length} • ${userScore} poäng`;
+}
+
+// Hanterar svar
 function handleAnswer(selectedAnswer, question) {
   if (answered) return;
   answered = true;
@@ -416,8 +551,7 @@ function handleAnswer(selectedAnswer, question) {
       `Fel svar! Rätt svar var ${question.correctAnswer}.`;
   }
 
-  quizProgress.textContent =
-    `${currentPlayerName} • Fråga ${currentQuestionIndex + 1}/${currentQuizCategory.questions.length} • ${userScore} poäng`;
+  updateQuizProgress();
 
   const isLastQuestion =
     currentQuestionIndex === currentQuizCategory.questions.length - 1;
@@ -440,7 +574,7 @@ function handleAnswer(selectedAnswer, question) {
   nextButton.focus();
 }
 
-// Visar och sparar resultatet en gång
+// Visar resultat
 function showResult() {
   if (resultSaved) return;
   resultSaved = true;
@@ -457,7 +591,9 @@ function showResult() {
 
   quizFeedback.textContent = saved
     ? "Ditt resultat är sparat. De tio bästa resultaten visas i topplistan!"
-    : "Resultatet visas under det här besöket, men kunde inte sparas till nästa gång.";
+    : storageSettings.scores
+      ? "Resultatet visas under detta besök, men kunde inte sparas till nästa gång."
+      : "Resultatet visas under detta besök. Aktivera lagring för att spara till nästa gång.";
 
   const doneButton = document.createElement("button");
   doneButton.type = "button";
@@ -475,7 +611,12 @@ function showResult() {
   doneButton.focus();
 }
 
-// Sparar topplistan i localStorage
+// Sorterar högsta resultat först
+function compareScores(a, b) {
+  return (b.score / b.total) - (a.score / a.total) || a.date - b.date;
+}
+
+// Sparar resultat om lagring tillåts
 function saveResult() {
   leaderboards[currentQuizKey].push({
     name: currentPlayerName,
@@ -484,34 +625,35 @@ function saveResult() {
     date: Date.now()
   });
 
-  leaderboards[currentQuizKey].sort((a, b) =>
-    (b.score / b.total) - (a.score / a.total) || a.date - b.date
-  );
+  leaderboards[currentQuizKey] = leaderboards[currentQuizKey]
+    .sort(compareScores)
+    .slice(0, 10);
 
-  leaderboards[currentQuizKey] = leaderboards[currentQuizKey].slice(0, 10);
+  if (!storageSettings.scores) {
+    storageStatus.textContent =
+      "Topplistan visas under detta besök och sparas inte till nästa gång.";
+    return false;
+  }
 
   try {
     localStorage.setItem(SCORES_KEY, JSON.stringify(leaderboards));
-    storageStatus.textContent = "";
+    storageStatus.textContent = "Topplistan sparas i den här webbläsaren.";
     return true;
   } catch (error) {
     console.error("Kunde inte spara resultatet", error);
-    storageStatus.textContent =
-      "Resultaten kunde inte sparas till nästa besök.";
+    storageStatus.textContent = "Resultaten kunde inte sparas till nästa besök.";
     return false;
   }
 }
 
-// Visar topplistorna
+// Visar topplistor
 function renderLeaderboards() {
   for (const key of Object.keys(quizzes)) {
     const list = document.querySelector(`#leaderboard-${key}`);
     if (!list) continue;
     list.replaceChildren();
 
-    const entries = [...leaderboards[key]].sort((a, b) =>
-      (b.score / b.total) - (a.score / a.total) || a.date - b.date
-    ).slice(0, 10);
+    const entries = [...leaderboards[key]].sort(compareScores).slice(0, 10);
 
     if (!entries.length) {
       const empty = document.createElement("li");
@@ -538,6 +680,7 @@ function renderLeaderboards() {
 
 // Stänger quizet
 function closeQuiz() {
+  quizRequestId++;
   quizPopup.classList.remove("open");
   document.body.classList.remove("quiz-open");
   resetAudio();
@@ -550,9 +693,9 @@ quizPopup.addEventListener("click", (event) => {
   if (event.target === quizPopup) closeQuiz();
 });
 
-// Tangentbordsnavigation
+// Tangentbordsnavigation i quizpopupen
 document.addEventListener("keydown", (event) => {
-  if (!quizPopup.classList.contains("open")) return;
+  if (!quizPopup.classList.contains("open") || cookieDialog.open) return;
 
   if (event.key === "Escape") {
     closeQuiz();
@@ -583,25 +726,27 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Kontrollerar din Node-server
+// Kontrollerar Node-servern
 async function checkServer() {
   try {
     const response = await fetch("/api/health");
-
-    if (!response.ok) {
-      throw new Error("Serverfel: " + response.status);
-    }
+    if (!response.ok) throw new Error("Serverfel: " + response.status);
 
     const data = await response.json();
-
     serverStatus.textContent = data.status === "ok"
       ? "Servern svarar. Öppna Network i DevTools och hitta requesten."
       : "Servern svarade, men med ett oväntat resultat.";
   } catch (error) {
-    console.error("Could not reach local server", error);
+    console.error("Kunde inte kontakta servern", error);
     serverStatus.textContent = "Kunde inte kontakta den lokala servern.";
   }
 }
 
 // Startar sidan
+loadStorageSettings();
 loadSavedData();
+checkServer();
+
+if (!hasSavedSettings) {
+  openCookieSettings();
+}

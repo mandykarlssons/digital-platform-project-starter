@@ -19,34 +19,26 @@
   </header>
 
   <main>
-    <!-- Namnregistrering -->
+    <!-- Registrering -->
     <section class="card registration">
       <h2>Vem spelar?</h2>
       <form id="registration-form">
         <label for="player-name">Ditt spelarnamn</label>
         <div class="registration-fields">
           <input id="player-name" name="playerName" type="text"
-                 placeholder="Skriv ditt namn" minlength="1"
-                 maxlength="30" required />
+                 placeholder="Skriv ditt namn" maxlength="30" required />
           <button type="submit">Registrera namn</button>
         </div>
-
-        <label class="remember-choice" for="remember-name">
-          <input id="remember-name" type="checkbox" />
-          Kom ihåg mitt spelarnamn i 30 dagar med en cookie.
-        </label>
       </form>
 
       <button id="forget-name" type="button">Glöm mitt spelarnamn</button>
-
       <p id="player-status" aria-live="polite">
         Registrera ditt namn innan du startar ett quiz.
       </p>
       <p class="small-text">
-        Markera rutan och registrera namnet för att spara en namn-cookie.
-        Avmarkera rutan för att ta bort den. Topplistorna sparas med namn och poäng
-        i den här webbläsaren tills webbplatsens lagring rensas.
-        ”Glöm mitt spelarnamn” tar inte bort tidigare resultat.
+        I cookies och lagring väljer du om ditt spelarnamn och din topplista
+        ska sparas till nästa besök. Topplistan gäller den här webbläsaren.
+        Att glömma spelarnamnet tar inte bort tidigare resultat.
       </p>
     </section>
 
@@ -118,6 +110,8 @@
 
       <p id="storage-status" aria-live="polite"></p>
     </section>
+
+    <p id="server-status" aria-live="polite"></p>
   </main>
 
   <!-- Quizpopup -->
@@ -129,11 +123,9 @@
       <h2 id="quiz-title">Musikquiz</h2>
       <p id="quiz-progress"></p>
       <p id="quiz-question">Lyssna på låten och välj rätt svar.</p>
-
       <audio id="quiz-audio" controls>
         Din webbläsare stödjer inte ljuduppspelning.
       </audio>
-
       <div id="quiz-answers"></div>
       <p id="quiz-feedback" aria-live="polite"></p>
       <div id="quiz-actions"></div>
@@ -141,7 +133,56 @@
   </div>
 
   <footer>
+    <button id="open-cookie-settings" type="button">Cookies och lagring</button>
     <p>Copyright © 2026 Järngängets Musikquiz. Alla rättigheter förbehållna.</p>
   </footer>
+
+  <!-- Cookiepopup -->
+  <dialog id="cookie-dialog" aria-labelledby="cookie-title">
+    <h2 id="cookie-title">Cookies och lagring</h2>
+    <p>
+      Du väljer vad musikquizet får spara i din webbläsare.
+      Du kan ändra dina val när som helst via knappen längst ned på sidan.
+    </p>
+
+    <form id="cookie-settings-form">
+      <label class="cookie-option">
+        <input type="checkbox" checked disabled />
+        <span>
+          <strong>Nödvändiga inställningar</strong>
+          <small>En cookie kommer ihåg dina lagringsval i 30 dagar.</small>
+        </span>
+      </label>
+
+      <label class="cookie-option">
+        <input id="allow-name-cookie" type="checkbox" />
+        <span>
+          <strong>Kom ihåg spelarnamn</strong>
+          <small>Ditt registrerade namn sparas i en cookie i 30 dagar.</small>
+        </span>
+      </label>
+
+      <label class="cookie-option">
+        <input id="allow-score-storage" type="checkbox" />
+        <span>
+          <strong>Spara topplistan</strong>
+          <small>
+            Namn och resultat sparas med localStorage till nästa besök.
+            Stänger du av detta tas tidigare sparade resultat bort från
+            webbläsarens lagring. Resultaten kan fortfarande visas under
+            det pågående besöket.
+          </small>
+        </span>
+      </label>
+
+      <p id="cookie-message" role="status"></p>
+
+      <div class="cookie-buttons">
+        <button id="accept-all-cookies" type="button">Godkänn alla</button>
+        <button id="necessary-cookies-only" type="button">Endast nödvändiga</button>
+        <button type="submit">Spara mina val</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
