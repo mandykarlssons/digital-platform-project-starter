@@ -15,19 +15,21 @@ const registrationForm = document.querySelector("#registration-form");
 const playerNameInput = document.querySelector("#player-name");
 const playerStatus = document.querySelector("#player-status");
 const storageStatus = document.querySelector("#storage-status");
+const rememberNameInput = document.querySelector("#remember-name");
+const forgetNameButton = document.querySelector("#forget-name");
 
-// Hjälpfunktion för att avkoda Base64 med stöd för svenska tecken (UTF-8)
+// Avkodar API-text med stöd för svenska tecken
 function decodeBase64(base64Str) {
   try {
     const binString = atob(base64Str);
     const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
     return new TextDecoder().decode(bytes);
   } catch (e) {
-    return base64Str; // fallback om avkodning misslyckas
+    return base64Str;
   }
 }
 
-// Dina quizfrågor
+// Quizfrågor
 const quizzes = {
   "80tal": {
     title: "Poppigt 80-tal",
@@ -124,15 +126,51 @@ let resultSaved = false;
 let previousFocus = null;
 let leaderboards = { "80tal": [], "90tal": [], "10tal": [], "external": [] };
 
+// Läser namn-cookien
+function readNameCookie() {
+  try {
+    const cookie = document.cookie.split(";").map((part) => part.trim())
+      .find((part) => part.startsWith(`${NAME_KEY}=`));
+
+    return cookie
+      ? decodeURIComponent(cookie.slice(NAME_KEY.length + 1)).trim().slice(0, 30)
+      : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+// Sparar namnet i en cookie i 30 dagar
+function writeNameCookie(name) {
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+
+  document.cookie =
+    `${NAME_KEY}=${encodeURIComponent(name)}; Max-Age=${30 * 24 * 60 * 60}; Path=/; SameSite=Lax${secure}`;
+
+  if (readNameCookie() !== name) {
+    throw new Error("Cookies är blockerade.");
+  }
+}
+
+// Tar bort namn-cookien
+function deleteNameCookie() {
+  document.cookie = `${NAME_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
+}
+
 // Läser sparade uppgifter
 function loadSavedData() {
   try {
-    const savedName = localStorage.getItem(NAME_KEY);
+    // Ett äldre sparat namn kan användas för det här besöket
+    const cookieName = readNameCookie();
+    const savedName = cookieName || localStorage.getItem(NAME_KEY);
     playerName = savedName ? savedName.trim().slice(0, 30) : "";
+    rememberNameInput.checked = Boolean(cookieName);
+
     const savedScores = JSON.parse(localStorage.getItem(SCORES_KEY) || "{}");
 
     for (const key of Object.keys(quizzes)) {
       const entries = savedScores?.[key];
+
       leaderboards[key] = Array.isArray(entries)
         ? entries.filter((entry) =>
             entry &&
@@ -181,12 +219,55 @@ registrationForm.addEventListener("submit", (event) => {
   updatePlayerStatus();
 
   try {
-    localStorage.setItem(NAME_KEY, playerName);
+    if (rememberNameInput.checked) {
+      writeNameCookie(playerName);
+    } else {
+      deleteNameCookie();
+    }
   } catch (error) {
     console.error("Kunde inte spara namnet", error);
     playerStatus.textContent =
-      `Du spelar som ${playerName}. Namnet kunde inte sparas till nästa besök.`;
+      `Du spelar som ${playerName}. Namninställningen kunde inte sparas. Kontrollera webbläsarens cookieinställningar.`;
   }
+});
+
+// Tar bort det gamla namnet från localStorage
+registrationForm.addEventListener("submit", () => {
+  try {
+    localStorage.removeItem(NAME_KEY);
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+// Avmarkering tar bort namn-cookien direkt
+rememberNameInput.addEventListener("change", () => {
+  if (!rememberNameInput.checked) {
+    deleteNameCookie();
+
+    try {
+      localStorage.removeItem(NAME_KEY);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+});
+
+// Glömmer namnet men behåller topplistorna
+forgetNameButton.addEventListener("click", () => {
+  deleteNameCookie();
+
+  try {
+    localStorage.removeItem(NAME_KEY);
+  } catch (error) {
+    console.error(error);
+  }
+
+  playerName = "";
+  playerNameInput.value = "";
+  rememberNameInput.checked = false;
+  updatePlayerStatus();
+  playerNameInput.focus();
 });
 
 playerNameInput.addEventListener("input", () => {
@@ -202,6 +283,7 @@ quizButtons.forEach((button) => {
       registrationForm.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+
     startQuizCategory(button.dataset.quiz);
   });
 });
@@ -221,7 +303,7 @@ async function startQuizCategory(categoryKey) {
   quizPopup.classList.add("open");
   document.body.classList.add("quiz-open");
 
-  // Om det är det externa API-quizzet, hämta frågorna först
+  // Hämtar frågor till det externa quizet
   if (currentQuizCategory.isApi) {
     quizTitle.textContent = currentQuizCategory.title;
     quizProgress.textContent = "Hämtar frågor från Open Trivia DB...";
@@ -231,7 +313,9 @@ async function startQuizCategory(categoryKey) {
     resetAudio();
 
     try {
-      const response = await fetch("https://opentdb.com/api.php?amount=10&category=12&difficulty=medium&type=multiple&encode=base64");
+      const response = await fetch(
+        "https://opentdb.com/api.php?amount=10&category=12&difficulty=medium&type=multiple&encode=base64"
+      );
       const data = await response.json();
 
       if (data.results && data.results.length > 0) {
@@ -239,9 +323,9 @@ async function startQuizCategory(categoryKey) {
           const decodedQuestion = decodeBase64(item.question);
           const decodedCorrect = decodeBase64(item.correct_answer);
           const decodedIncorrects = item.incorrect_answers.map(decodeBase64);
-          
-          // Slumpa ihop svarsalternativen
-          const allAnswers = [...decodedIncorrects, decodedCorrect].sort(() => Math.random() - 0.5);
+
+          const allAnswers = [...decodedIncorrects, decodedCorrect]
+            .sort(() => Math.random() - 0.5);
 
           return {
             question: decodedQuestion,
@@ -250,13 +334,16 @@ async function startQuizCategory(categoryKey) {
             correctAnswer: decodedCorrect
           };
         });
+
         loadQuestion();
       } else {
-        quizQuestion.textContent = "Kunde inte ladda frågor från API:et. Försök igen senare.";
+        quizQuestion.textContent =
+          "Kunde inte ladda frågor från API:et. Försök igen senare.";
       }
     } catch (error) {
       console.error("API Error:", error);
-      quizQuestion.textContent = "Ett nätverksfel uppstod vid hämtning av frågor.";
+      quizQuestion.textContent =
+        "Ett nätverksfel uppstod vid hämtning av frågor.";
     }
   } else {
     loadQuestion();
@@ -313,6 +400,7 @@ function handleAnswer(selectedAnswer, question) {
 
   quizAnswers.querySelectorAll("button").forEach((button) => {
     button.disabled = true;
+
     if (button.textContent === question.correctAnswer) {
       button.classList.add("correct");
     } else if (button.textContent === selectedAnswer) {
@@ -324,7 +412,8 @@ function handleAnswer(selectedAnswer, question) {
     userScore++;
     quizFeedback.textContent = "Rätt svar!";
   } else {
-    quizFeedback.textContent = `Fel svar! Rätt svar var ${question.correctAnswer}.`;
+    quizFeedback.textContent =
+      `Fel svar! Rätt svar var ${question.correctAnswer}.`;
   }
 
   quizProgress.textContent =
@@ -332,6 +421,7 @@ function handleAnswer(selectedAnswer, question) {
 
   const isLastQuestion =
     currentQuestionIndex === currentQuizCategory.questions.length - 1;
+
   const nextButton = document.createElement("button");
   nextButton.type = "button";
   nextButton.textContent = isLastQuestion ? "Visa resultat" : "Nästa fråga →";
@@ -364,6 +454,7 @@ function showResult() {
 
   const saved = saveResult();
   renderLeaderboards();
+
   quizFeedback.textContent = saved
     ? "Ditt resultat är sparat. De tio bästa resultaten visas i topplistan!"
     : "Resultatet visas under det här besöket, men kunde inte sparas till nästa gång.";
@@ -371,6 +462,7 @@ function showResult() {
   const doneButton = document.createElement("button");
   doneButton.type = "button";
   doneButton.textContent = "Stäng och se topplistor";
+
   doneButton.addEventListener("click", () => {
     closeQuiz();
     document.querySelector(".leaderboards").scrollIntoView({
@@ -378,11 +470,12 @@ function showResult() {
       block: "start"
     });
   });
+
   quizActions.replaceChildren(doneButton);
   doneButton.focus();
 }
 
-// Sparar ett avslutat spel
+// Sparar topplistan i localStorage
 function saveResult() {
   leaderboards[currentQuizKey].push({
     name: currentPlayerName,
@@ -394,6 +487,7 @@ function saveResult() {
   leaderboards[currentQuizKey].sort((a, b) =>
     (b.score / b.total) - (a.score / a.total) || a.date - b.date
   );
+
   leaderboards[currentQuizKey] = leaderboards[currentQuizKey].slice(0, 10);
 
   try {
@@ -408,7 +502,7 @@ function saveResult() {
   }
 }
 
-// Bygger topplistor med namn som vanlig text
+// Visar topplistorna
 function renderLeaderboards() {
   for (const key of Object.keys(quizzes)) {
     const list = document.querySelector(`#leaderboard-${key}`);
@@ -430,10 +524,12 @@ function renderLeaderboards() {
       const item = document.createElement("li");
       const name = document.createElement("span");
       const score = document.createElement("span");
+
       name.className = "entry-name";
       score.className = "entry-score";
       name.textContent = `${index + 1}. ${entry.name}`;
       score.textContent = `${entry.score}/${entry.total} rätt`;
+
       item.append(name, score);
       list.appendChild(item);
     });
@@ -449,11 +545,12 @@ function closeQuiz() {
 }
 
 closeQuizButton.addEventListener("click", closeQuiz);
+
 quizPopup.addEventListener("click", (event) => {
   if (event.target === quizPopup) closeQuiz();
 });
 
-// Escape och tangentbordsnavigation i popupen
+// Tangentbordsnavigation
 document.addEventListener("keydown", (event) => {
   if (!quizPopup.classList.contains("open")) return;
 
@@ -466,15 +563,20 @@ document.addEventListener("keydown", (event) => {
     const elements = [...popupContent.querySelectorAll(
       "button:not(:disabled), audio[controls]"
     )].filter((element) => element.getClientRects().length > 0);
+
     const first = elements[0];
     const last = elements[elements.length - 1];
 
-    if (event.shiftKey &&
-        (document.activeElement === first || document.activeElement === popupContent)) {
+    if (
+      event.shiftKey &&
+      (document.activeElement === first || document.activeElement === popupContent)
+    ) {
       event.preventDefault();
       last?.focus();
-    } else if (!event.shiftKey &&
-               (document.activeElement === last || document.activeElement === popupContent)) {
+    } else if (
+      !event.shiftKey &&
+      (document.activeElement === last || document.activeElement === popupContent)
+    ) {
       event.preventDefault();
       first?.focus();
     }
@@ -485,11 +587,13 @@ document.addEventListener("keydown", (event) => {
 async function checkServer() {
   try {
     const response = await fetch("/api/health");
+
     if (!response.ok) {
       throw new Error("Serverfel: " + response.status);
     }
 
     const data = await response.json();
+
     serverStatus.textContent = data.status === "ok"
       ? "Servern svarar. Öppna Network i DevTools och hitta requesten."
       : "Servern svarade, men med ett oväntat resultat.";

@@ -30,12 +30,23 @@
                  maxlength="30" required />
           <button type="submit">Registrera namn</button>
         </div>
+
+        <label class="remember-choice" for="remember-name">
+          <input id="remember-name" type="checkbox" />
+          Kom ihåg mitt spelarnamn i 30 dagar med en cookie.
+        </label>
       </form>
+
+      <button id="forget-name" type="button">Glöm mitt spelarnamn</button>
+
       <p id="player-status" aria-live="polite">
         Registrera ditt namn innan du startar ett quiz.
       </p>
       <p class="small-text">
-        Namn och topplistor sparas i den här webbläsaren.
+        Markera rutan och registrera namnet för att spara en namn-cookie.
+        Avmarkera rutan för att ta bort den. Topplistorna sparas med namn och poäng
+        i den här webbläsaren tills webbplatsens lagring rensas.
+        ”Glöm mitt spelarnamn” tar inte bort tidigare resultat.
       </p>
     </section>
 
@@ -71,7 +82,8 @@
       <section class="card">
         <h2>May the odds be ever in your favor - Ultimate Quiz</h2>
         <p>
-          Utmana dig själv med slumpmässiga musikfrågor direkt från Open Trivia Database! Medium svårighetsgrad.
+          Utmana dig själv med slumpmässiga musikfrågor direkt från Open Trivia Database!
+          Medium svårighetsgrad.
         </p>
         <button class="quiz-button" data-quiz="external" type="button">Starta här!</button>
       </section>
@@ -80,7 +92,11 @@
     <!-- Topplistor -->
     <section class="leaderboards" aria-labelledby="leaderboards-title">
       <h2 id="leaderboards-title">Topplistor</h2>
-      <p>De tio bästa resultaten per quiz. Varje avslutat spel räknas.</p>
+      <p>
+        De tio bästa resultaten per quiz i den här webbläsaren.
+        Varje avslutat spel räknas.
+      </p>
+
       <div class="quiz-grid">
         <section class="card">
           <h3>Poppigt 80-tal</h3>
@@ -99,6 +115,7 @@
           <ol id="leaderboard-external" class="leaderboard-list"></ol>
         </section>
       </div>
+
       <p id="storage-status" aria-live="polite"></p>
     </section>
   </main>
@@ -112,9 +129,11 @@
       <h2 id="quiz-title">Musikquiz</h2>
       <p id="quiz-progress"></p>
       <p id="quiz-question">Lyssna på låten och välj rätt svar.</p>
+
       <audio id="quiz-audio" controls>
         Din webbläsare stödjer inte ljuduppspelning.
       </audio>
+
       <div id="quiz-answers"></div>
       <p id="quiz-feedback" aria-live="polite"></p>
       <div id="quiz-actions"></div>
