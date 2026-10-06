@@ -16,6 +16,17 @@ const playerNameInput = document.querySelector("#player-name");
 const playerStatus = document.querySelector("#player-status");
 const storageStatus = document.querySelector("#storage-status");
 
+// Hjälpfunktion för att avkoda Base64 med stöd för svenska tecken (UTF-8)
+function decodeBase64(base64Str) {
+  try {
+    const binString = atob(base64Str);
+    const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch (e) {
+    return base64Str; // fallback om avkodning misslyckas
+  }
+}
+
 // Dina quizfrågor
 const quizzes = {
   "80tal": {
@@ -91,6 +102,11 @@ const quizzes = {
         correctAnswer: "Drake"
       }
     ]
+  },
+  "external": {
+    title: "Extern Musiktrivia (API)",
+    isApi: true,
+    questions: []
   }
 };
 
@@ -106,7 +122,7 @@ let userScore = 0;
 let answered = false;
 let resultSaved = false;
 let previousFocus = null;
-let leaderboards = { "80tal": [], "90tal": [], "10tal": [] };
+let leaderboards = { "80tal": [], "90tal": [], "10tal": [], "external": [] };
 
 // Läser sparade uppgifter
 function loadSavedData() {
@@ -191,7 +207,7 @@ quizButtons.forEach((button) => {
 });
 
 // Startar valt quiz
-function startQuizCategory(categoryKey) {
+async function startQuizCategory(categoryKey) {
   if (!quizzes[categoryKey]) return;
 
   previousFocus = document.activeElement;
@@ -204,7 +220,48 @@ function startQuizCategory(categoryKey) {
 
   quizPopup.classList.add("open");
   document.body.classList.add("quiz-open");
-  loadQuestion();
+
+  // Om det är det externa API-quizzet, hämta frågorna först
+  if (currentQuizCategory.isApi) {
+    quizTitle.textContent = currentQuizCategory.title;
+    quizProgress.textContent = "Hämtar frågor från Open Trivia DB...";
+    quizQuestion.textContent = "Var god vänta...";
+    quizAnswers.replaceChildren();
+    quizActions.replaceChildren();
+    resetAudio();
+
+    try {
+      const response = await fetch("https://opentdb.com/api.php?amount=10&category=12&difficulty=medium&type=multiple&encode=base64");
+      const data = await response.json();
+
+      if (data.results && data.results.length > 0) {
+        currentQuizCategory.questions = data.results.map((item) => {
+          const decodedQuestion = decodeBase64(item.question);
+          const decodedCorrect = decodeBase64(item.correct_answer);
+          const decodedIncorrects = item.incorrect_answers.map(decodeBase64);
+          
+          // Slumpa ihop svarsalternativen
+          const allAnswers = [...decodedIncorrects, decodedCorrect].sort(() => Math.random() - 0.5);
+
+          return {
+            question: decodedQuestion,
+            audio: null,
+            answers: allAnswers,
+            correctAnswer: decodedCorrect
+          };
+        });
+        loadQuestion();
+      } else {
+        quizQuestion.textContent = "Kunde inte ladda frågor från API:et. Försök igen senare.";
+      }
+    } catch (error) {
+      console.error("API Error:", error);
+      quizQuestion.textContent = "Ett nätverksfel uppstod vid hämtning av frågor.";
+    }
+  } else {
+    loadQuestion();
+  }
+
   popupContent.focus();
 }
 
@@ -355,6 +412,7 @@ function saveResult() {
 function renderLeaderboards() {
   for (const key of Object.keys(quizzes)) {
     const list = document.querySelector(`#leaderboard-${key}`);
+    if (!list) continue;
     list.replaceChildren();
 
     const entries = [...leaderboards[key]].sort((a, b) =>
