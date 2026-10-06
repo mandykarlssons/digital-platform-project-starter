@@ -745,7 +745,7 @@ async function checkServer() {
 // Startar sidan
 loadStorageSettings();
 loadSavedData();
-checkServer();
+
 
 if (!hasSavedSettings) {
   openCookieSettings();
