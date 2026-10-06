@@ -5,24 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Järngängets Musikquiz</title>
   <link rel="stylesheet" href="/style.css" />
+  <script src="/app.js" defer></script>
 </head>
-
 <body>
-  <!-- Sidans header -->
+  <!-- Header -->
   <header class="site-header">
     <p class="eyebrow">Digital Platform Project</p>
     <h1>Musik Quiz</h1>
     <p class="intro">
       Välkommen till Järngängets Musikquiz, alla stilar på en och samma gång.
-      Välj genre nedan:
+      Registrera ditt spelarnamn och välj genre nedan!
     </p>
   </header>
 
   <main>
-    <!-- De tre quizboxarna -->
-    <div class="quiz-grid">
+    <!-- Namnregistrering -->
+    <section class="card registration">
+      <h2>Vem spelar?</h2>
+      <form id="registration-form">
+        <label for="player-name">Ditt spelarnamn</label>
+        <div class="registration-fields">
+          <input id="player-name" name="playerName" type="text"
+                 placeholder="Skriv ditt namn" minlength="1"
+                 maxlength="30" required />
+          <button type="submit">Registrera namn</button>
+        </div>
+      </form>
+      <p id="player-status" aria-live="polite">
+        Registrera ditt namn innan du startar ett quiz.
+      </p>
+      <p class="small-text">
+        Namn och topplistor sparas i den här webbläsaren.
+      </p>
+    </section>
 
-      <!-- 80-tal -->
+    <!-- Quizboxar -->
+    <div class="quiz-grid">
       <section class="card">
         <h2>Poppigt 80-tal</h2>
         <p>
@@ -32,7 +50,6 @@
         <button class="quiz-button" data-quiz="80tal" type="button">Starta här!</button>
       </section>
 
-      <!-- 90-tal -->
       <section class="card">
         <h2>Håll käften-musik från 90-talet</h2>
         <p>
@@ -42,7 +59,6 @@
         <button class="quiz-button" data-quiz="90tal" type="button">Starta här!</button>
       </section>
 
-      <!-- 10-tal -->
       <section class="card">
         <h2>Det bästa av det mesta från 10-talet</h2>
         <p>
@@ -52,32 +68,51 @@
         <button class="quiz-button" data-quiz="10tal" type="button">Starta här!</button>
       </section>
     </div>
-          <p id="server-status">Kontrollerar servern...</p>
+
+    <!-- Topplistor -->
+    <section class="leaderboards" aria-labelledby="leaderboards-title">
+      <h2 id="leaderboards-title">Topplistor</h2>
+      <p>De tio bästa resultaten per quiz. Varje avslutat spel räknas.</p>
+      <div class="quiz-grid">
+        <section class="card">
+          <h3>Poppigt 80-tal</h3>
+          <ol id="leaderboard-80tal" class="leaderboard-list"></ol>
+        </section>
+        <section class="card">
+          <h3>90-talet</h3>
+          <ol id="leaderboard-90tal" class="leaderboard-list"></ol>
+        </section>
+        <section class="card">
+          <h3>10-talet</h3>
+          <ol id="leaderboard-10tal" class="leaderboard-list"></ol>
+        </section>
+      </div>
+      <p id="storage-status" aria-live="polite"></p>
+    </section>
+
+    <p id="server-status">Kontrollerar servern...</p>
   </main>
 
-  <!-- Popup för quizet -->
+  <!-- Quizpopup -->
   <div id="quiz-popup" class="quiz-popup">
-    <div class="quiz-popup-content">
-      <button id="close-quiz" class="close-button" type="button" aria-label="Stäng quiz">×</button>
-
+    <div class="quiz-popup-content" role="dialog" aria-modal="true"
+         aria-labelledby="quiz-title" tabindex="-1">
+      <button id="close-quiz" class="close-button" type="button"
+              aria-label="Stäng quiz">×</button>
       <h2 id="quiz-title">Musikquiz</h2>
+      <p id="quiz-progress"></p>
       <p id="quiz-question">Lyssna på låten och välj rätt svar.</p>
-
-      <!-- Musikspelare -->
       <audio id="quiz-audio" controls>
         Din webbläsare stödjer inte ljuduppspelning.
       </audio>
-
-      <!-- Svar och feedback skapas med JavaScript -->
       <div id="quiz-answers"></div>
       <p id="quiz-feedback" aria-live="polite"></p>
+      <div id="quiz-actions"></div>
     </div>
   </div>
 
   <footer>
     <p>Copyright © 2026 Järngängets Musikquiz. Alla rättigheter förbehållna.</p>
   </footer>
-
-  <script src="/app.js"></script>
 </body>
 </html>

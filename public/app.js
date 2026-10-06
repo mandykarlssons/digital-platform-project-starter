@@ -1,15 +1,22 @@
-// Hämtar element från HTML
+// Hämtar HTML-element
 const quizButtons = document.querySelectorAll(".quiz-button");
 const quizPopup = document.querySelector("#quiz-popup");
+const popupContent = document.querySelector(".quiz-popup-content");
 const closeQuizButton = document.querySelector("#close-quiz");
 const quizTitle = document.querySelector("#quiz-title");
+const quizProgress = document.querySelector("#quiz-progress");
 const quizQuestion = document.querySelector("#quiz-question");
 const quizAudio = document.querySelector("#quiz-audio");
 const quizAnswers = document.querySelector("#quiz-answers");
 const quizFeedback = document.querySelector("#quiz-feedback");
+const quizActions = document.querySelector("#quiz-actions");
 const serverStatus = document.querySelector("#server-status");
+const registrationForm = document.querySelector("#registration-form");
+const playerNameInput = document.querySelector("#player-name");
+const playerStatus = document.querySelector("#player-status");
+const storageStatus = document.querySelector("#storage-status");
 
-// Quizens innehåll (både musik- och faktafrågor)
+// Dina quizfrågor
 const quizzes = {
   "80tal": {
     title: "Poppigt 80-tal",
@@ -27,14 +34,13 @@ const quizzes = {
         correctAnswer: "1982"
       },
       {
-        question: "Vilket känt Norskt synthband hade en enorm hit med 'Take On Me'?",
+        question: "Vilket känt norskt synthband hade en enorm hit med 'Take On Me'?",
         audio: null,
         answers: ["Duran Duran", "Depeche Mode", "A-ha", "Pet Shop Boys"],
         correctAnswer: "A-ha"
       }
     ]
   },
-
   "90tal": {
     title: "Håll käften-musik från 90-talet",
     questions: [
@@ -58,7 +64,6 @@ const quizzes = {
       }
     ]
   },
-
   "10tal": {
     title: "Det bästa av det mesta från 10-talet",
     questions: [
@@ -71,7 +76,12 @@ const quizzes = {
       {
         question: "Vilken låt vann Eurovision Song Contest för Sverige år 2012?",
         audio: null,
-        answers: ["Euphoria - Loreen", "Heroes - Måns Zelmerlöw", "Popular - Eric Saade", "Dance You Off - Benjamin Ingrosso"],
+        answers: [
+          "Euphoria - Loreen",
+          "Heroes - Måns Zelmerlöw",
+          "Popular - Eric Saade",
+          "Dance You Off - Benjamin Ingrosso"
+        ],
         correctAnswer: "Euphoria - Loreen"
       },
       {
@@ -84,151 +94,353 @@ const quizzes = {
   }
 };
 
-// Tillståndshantering
+// Sparnycklar och spelets tillstånd
+const NAME_KEY = "jarnganget-player-name";
+const SCORES_KEY = "jarnganget-leaderboards";
+let playerName = "";
+let currentPlayerName = "";
+let currentQuizKey = null;
 let currentQuizCategory = null;
 let currentQuestionIndex = 0;
 let userScore = 0;
+let answered = false;
+let resultSaved = false;
+let previousFocus = null;
+let leaderboards = { "80tal": [], "90tal": [], "10tal": [] };
 
-// Lyssnar på alla Starta-knappar
+// Läser sparade uppgifter
+function loadSavedData() {
+  try {
+    const savedName = localStorage.getItem(NAME_KEY);
+    playerName = savedName ? savedName.trim().slice(0, 30) : "";
+    const savedScores = JSON.parse(localStorage.getItem(SCORES_KEY) || "{}");
+
+    for (const key of Object.keys(quizzes)) {
+      const entries = savedScores?.[key];
+      leaderboards[key] = Array.isArray(entries)
+        ? entries.filter((entry) =>
+            entry &&
+            typeof entry.name === "string" &&
+            entry.name.trim().length > 0 &&
+            Number.isInteger(entry.score) &&
+            Number.isInteger(entry.total) &&
+            entry.total > 0 &&
+            entry.score >= 0 &&
+            entry.score <= entry.total &&
+            Number.isFinite(entry.date)
+          )
+        : [];
+    }
+  } catch (error) {
+    console.error("Kunde inte läsa sparade uppgifter", error);
+    storageStatus.textContent =
+      "Sparade uppgifter kunde inte läsas. Du kan fortfarande spela.";
+  }
+
+  playerNameInput.value = playerName;
+  updatePlayerStatus();
+  renderLeaderboards();
+}
+
+// Visar registrerat namn
+function updatePlayerStatus() {
+  playerStatus.textContent = playerName
+    ? `Du spelar som ${playerName}. Du kan registrera ett annat namn ovan.`
+    : "Registrera ditt namn innan du startar ett quiz.";
+}
+
+// Registrerar spelarnamn
+registrationForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = playerNameInput.value.trim();
+
+  if (!name) {
+    playerNameInput.setCustomValidity("Skriv ett spelarnamn.");
+    playerNameInput.reportValidity();
+    return;
+  }
+
+  playerName = name.slice(0, 30);
+  playerNameInput.value = playerName;
+  updatePlayerStatus();
+
+  try {
+    localStorage.setItem(NAME_KEY, playerName);
+  } catch (error) {
+    console.error("Kunde inte spara namnet", error);
+    playerStatus.textContent =
+      `Du spelar som ${playerName}. Namnet kunde inte sparas till nästa besök.`;
+  }
+});
+
+playerNameInput.addEventListener("input", () => {
+  playerNameInput.setCustomValidity("");
+});
+
+// Startknappar
 quizButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    const quizName = button.dataset.quiz;
-    startQuizCategory(quizName);
+    if (!playerName) {
+      playerStatus.textContent = "Registrera ditt namn först för att kunna spela!";
+      playerNameInput.focus();
+      registrationForm.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    startQuizCategory(button.dataset.quiz);
   });
 });
 
-// Startar vald quizkategori
+// Startar valt quiz
 function startQuizCategory(categoryKey) {
+  if (!quizzes[categoryKey]) return;
+
+  previousFocus = document.activeElement;
+  currentQuizKey = categoryKey;
   currentQuizCategory = quizzes[categoryKey];
+  currentPlayerName = playerName;
   currentQuestionIndex = 0;
   userScore = 0;
-  
+  resultSaved = false;
+
   quizPopup.classList.add("open");
+  document.body.classList.add("quiz-open");
   loadQuestion();
+  popupContent.focus();
 }
 
-// Laddar aktuell fråga
+// Stoppar och tömmer ljudspelaren
+function resetAudio() {
+  quizAudio.pause();
+  quizAudio.removeAttribute("src");
+  quizAudio.load();
+  quizAudio.style.display = "none";
+}
+
+// Laddar en fråga
 function loadQuestion() {
-  const currentQuiz = currentQuizCategory;
-  const currentQ = currentQuiz.questions[currentQuestionIndex];
-  const totalQuestions = currentQuiz.questions.length;
+  const question = currentQuizCategory.questions[currentQuestionIndex];
+  answered = false;
 
-  quizTitle.textContent = `${currentQuiz.title} (Fråga ${currentQuestionIndex + 1}/${totalQuestions})`;
-  quizQuestion.textContent = currentQ.question;
+  quizTitle.textContent = currentQuizCategory.title;
+  quizProgress.textContent =
+    `${currentPlayerName} • Fråga ${currentQuestionIndex + 1}/${currentQuizCategory.questions.length} • ${userScore} poäng`;
+  quizQuestion.textContent = question.question;
   quizFeedback.textContent = "";
-  quizAnswers.innerHTML = "";
+  quizAnswers.replaceChildren();
+  quizActions.replaceChildren();
+  resetAudio();
 
-  // Om frågan har ljud spelas det upp, annars döljs ljudspelaren
-  if (currentQ.audio) {
+  if (question.audio) {
     quizAudio.style.display = "block";
-    quizAudio.src = currentQ.audio;
+    quizAudio.src = question.audio;
     quizAudio.load();
     quizAudio.play().catch(() => {
       console.log("Tryck på Play för att starta musiken.");
     });
-  } else {
-    quizAudio.pause();
-    quizAudio.style.display = "none";
   }
 
-  // Skapar svarsknappar
-  currentQ.answers.forEach((answer) => {
-    const answerButton = document.createElement("button");
-    answerButton.type = "button";
-    answerButton.textContent = answer;
-
-    answerButton.addEventListener("click", () => handleAnswer(answer, currentQ));
-    quizAnswers.appendChild(answerButton);
+  question.answers.forEach((answer) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = answer;
+    button.addEventListener("click", () => handleAnswer(answer, question));
+    quizAnswers.appendChild(button);
   });
 }
 
-// Hanterar svar och nästa steg
-function handleAnswer(selectedAnswer, questionData) {
-  if (questionData.audio) {
-    quizAudio.pause();
-  }
+// Hanterar svaret
+function handleAnswer(selectedAnswer, question) {
+  if (answered) return;
+  answered = true;
+  quizAudio.pause();
 
-  // Lås alla svarsknappar
-  const buttons = quizAnswers.querySelectorAll("button");
-  buttons.forEach((btn) => (btn.disabled = true));
+  quizAnswers.querySelectorAll("button").forEach((button) => {
+    button.disabled = true;
+    if (button.textContent === question.correctAnswer) {
+      button.classList.add("correct");
+    } else if (button.textContent === selectedAnswer) {
+      button.classList.add("incorrect");
+    }
+  });
 
-  const isCorrect = selectedAnswer === questionData.correctAnswer;
-  if (isCorrect) {
+  if (selectedAnswer === question.correctAnswer) {
     userScore++;
     quizFeedback.textContent = "Rätt svar!";
   } else {
-    quizFeedback.textContent = `Fel svar! Rätt svar var ${questionData.correctAnswer}.`;
+    quizFeedback.textContent = `Fel svar! Rätt svar var ${question.correctAnswer}.`;
   }
 
-  // Nästa knapp eller avsluta
-  const isLastQuestion = currentQuestionIndex === currentQuizCategory.questions.length - 1;
-  const nextButton = document.createElement("button");
-  nextButton.style.marginTop = "15px";
+  quizProgress.textContent =
+    `${currentPlayerName} • Fråga ${currentQuestionIndex + 1}/${currentQuizCategory.questions.length} • ${userScore} poäng`;
 
-  if (isLastQuestion) {
-    nextButton.textContent = "Visa resultat";
-    nextButton.addEventListener("click", () => {
-      quizTitle.textContent = `${currentQuizCategory.title} - Klart!`;
-      quizQuestion.textContent = `Du fick ${userScore} av ${currentQuizCategory.questions.length} rätt.`;
-      quizAnswers.innerHTML = "";
-      quizFeedback.textContent = "";
-      quizAudio.style.display = "none";
-    });
-  } else {
-    nextButton.textContent = "Nästa fråga ->";
-    nextButton.addEventListener("click", () => {
+  const isLastQuestion =
+    currentQuestionIndex === currentQuizCategory.questions.length - 1;
+  const nextButton = document.createElement("button");
+  nextButton.type = "button";
+  nextButton.textContent = isLastQuestion ? "Visa resultat" : "Nästa fråga →";
+
+  nextButton.addEventListener("click", () => {
+    if (isLastQuestion) {
+      showResult();
+    } else {
       currentQuestionIndex++;
       loadQuestion();
+      popupContent.focus();
+    }
+  });
+
+  quizActions.replaceChildren(nextButton);
+  nextButton.focus();
+}
+
+// Visar och sparar resultatet en gång
+function showResult() {
+  if (resultSaved) return;
+  resultSaved = true;
+  resetAudio();
+
+  const total = currentQuizCategory.questions.length;
+  quizTitle.textContent = `${currentQuizCategory.title} – Klart!`;
+  quizProgress.textContent = currentPlayerName;
+  quizQuestion.textContent = `Du fick ${userScore} av ${total} rätt!`;
+  quizAnswers.replaceChildren();
+
+  const saved = saveResult();
+  renderLeaderboards();
+  quizFeedback.textContent = saved
+    ? "Ditt resultat är sparat. De tio bästa resultaten visas i topplistan!"
+    : "Resultatet visas under det här besöket, men kunde inte sparas till nästa gång.";
+
+  const doneButton = document.createElement("button");
+  doneButton.type = "button";
+  doneButton.textContent = "Stäng och se topplistor";
+  doneButton.addEventListener("click", () => {
+    closeQuiz();
+    document.querySelector(".leaderboards").scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+  quizActions.replaceChildren(doneButton);
+  doneButton.focus();
+}
+
+// Sparar ett avslutat spel
+function saveResult() {
+  leaderboards[currentQuizKey].push({
+    name: currentPlayerName,
+    score: userScore,
+    total: currentQuizCategory.questions.length,
+    date: Date.now()
+  });
+
+  leaderboards[currentQuizKey].sort((a, b) =>
+    (b.score / b.total) - (a.score / a.total) || a.date - b.date
+  );
+  leaderboards[currentQuizKey] = leaderboards[currentQuizKey].slice(0, 10);
+
+  try {
+    localStorage.setItem(SCORES_KEY, JSON.stringify(leaderboards));
+    storageStatus.textContent = "";
+    return true;
+  } catch (error) {
+    console.error("Kunde inte spara resultatet", error);
+    storageStatus.textContent =
+      "Resultaten kunde inte sparas till nästa besök.";
+    return false;
+  }
+}
+
+// Bygger topplistor med namn som vanlig text
+function renderLeaderboards() {
+  for (const key of Object.keys(quizzes)) {
+    const list = document.querySelector(`#leaderboard-${key}`);
+    list.replaceChildren();
+
+    const entries = [...leaderboards[key]].sort((a, b) =>
+      (b.score / b.total) - (a.score / a.total) || a.date - b.date
+    ).slice(0, 10);
+
+    if (!entries.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "Inga resultat ännu. Bli först!";
+      list.appendChild(empty);
+      continue;
+    }
+
+    entries.forEach((entry, index) => {
+      const item = document.createElement("li");
+      const name = document.createElement("span");
+      const score = document.createElement("span");
+      name.className = "entry-name";
+      score.className = "entry-score";
+      name.textContent = `${index + 1}. ${entry.name}`;
+      score.textContent = `${entry.score}/${entry.total} rätt`;
+      item.append(name, score);
+      list.appendChild(item);
     });
   }
-
-  quizFeedback.appendChild(document.createElement("br"));
-  quizFeedback.appendChild(nextButton);
 }
 
 // Stänger quizet
 function closeQuiz() {
   quizPopup.classList.remove("open");
-  quizAudio.pause();
-  quizAudio.currentTime = 0;
+  document.body.classList.remove("quiz-open");
+  resetAudio();
+  previousFocus?.focus();
 }
 
-// Event handlers för stängning
 closeQuizButton.addEventListener("click", closeQuiz);
-
 quizPopup.addEventListener("click", (event) => {
-  if (event.target === quizPopup) {
-    closeQuiz();
-  }
+  if (event.target === quizPopup) closeQuiz();
 });
 
+// Escape och tangentbordsnavigation i popupen
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && quizPopup.classList.contains("open")) {
+  if (!quizPopup.classList.contains("open")) return;
+
+  if (event.key === "Escape") {
     closeQuiz();
+    return;
+  }
+
+  if (event.key === "Tab") {
+    const elements = [...popupContent.querySelectorAll(
+      "button:not(:disabled), audio[controls]"
+    )].filter((element) => element.getClientRects().length > 0);
+    const first = elements[0];
+    const last = elements[elements.length - 1];
+
+    if (event.shiftKey &&
+        (document.activeElement === first || document.activeElement === popupContent)) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey &&
+               (document.activeElement === last || document.activeElement === popupContent)) {
+      event.preventDefault();
+      first?.focus();
+    }
   }
 });
 
-// Kontrollerar Node-servern
+// Kontrollerar din Node-server
 async function checkServer() {
   try {
     const response = await fetch("/api/health");
-
     if (!response.ok) {
       throw new Error("Serverfel: " + response.status);
     }
 
     const data = await response.json();
-
-    serverStatus.textContent =
-      data.status === "ok"
-        ? "Servern svarar. Öppna Network i DevTools och hitta requesten."
-        : "Servern svarade, men med ett oväntat resultat.";
+    serverStatus.textContent = data.status === "ok"
+      ? "Servern svarar. Öppna Network i DevTools och hitta requesten."
+      : "Servern svarade, men med ett oväntat resultat.";
   } catch (error) {
     console.error("Could not reach local server", error);
     serverStatus.textContent = "Kunde inte kontakta den lokala servern.";
   }
 }
 
+// Startar sidan
+loadSavedData();
 checkServer();
-
-
